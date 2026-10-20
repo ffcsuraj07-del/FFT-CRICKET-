@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Match, InningsScorecard } from '../types/cricket.ts';
 import { apiFetch } from '../lib/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface MatchesProps {
   matches: Match[];
@@ -26,6 +27,7 @@ export const Matches: React.FC<MatchesProps> = ({
   onOpenScoring,
   onCreateMatch,
 }) => {
+  const { isAdmin } = useAuth();
   const [filter, setFilter] = useState<'all' | 'live' | 'completed' | 'upcoming'>('all');
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [scorecardData, setScorecardData] = useState<any | null>(null);
@@ -63,13 +65,15 @@ export const Matches: React.FC<MatchesProps> = ({
             Official FFC match records, live scoring, and full box scorecards
           </p>
         </div>
-        <button
-          onClick={onCreateMatch}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md transition-all"
-        >
-          <Play className="w-4 h-4 fill-current" />
-          <span>+ Create Match</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={onCreateMatch}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md transition-all"
+          >
+            <Play className="w-4 h-4 fill-current" />
+            <span>+ Create Match</span>
+          </button>
+        )}
       </div>
 
       {/* Status Filter Tabs */}
@@ -196,19 +200,30 @@ export const Matches: React.FC<MatchesProps> = ({
                     <span>Full Scorecard</span>
                   </button>
 
-                  <button
-                    onClick={() => onOpenScoring(m.id)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
-                      isLive
-                        ? 'bg-red-600 hover:bg-red-500 text-white shadow'
-                        : isCompleted
-                        ? 'bg-emerald-800/60 hover:bg-emerald-700 text-emerald-100'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
-                    }`}
-                  >
-                    <Play className="w-3 h-3 fill-current" />
-                    <span>{isLive ? 'Live Scoring' : isCompleted ? 'Scoring Console' : 'Start Match'}</span>
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      onClick={() => onOpenScoring(m.id)}
+                      className={`py-2 px-3 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 ${
+                        isLive
+                          ? 'bg-red-600 hover:bg-red-500 text-white shadow'
+                          : isCompleted
+                          ? 'bg-emerald-800/60 hover:bg-emerald-700 text-emerald-100'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
+                      }`}
+                    >
+                      <Play className="w-3 h-3 fill-current" />
+                      <span>{isLive ? 'Live Scoring' : isCompleted ? 'Scoring Console' : 'Start Match'}</span>
+                    </button>
+                  ) : isLive ? (
+                    <button
+                      onClick={() => onOpenScoring(m.id)}
+                      className="py-2 px-3 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow animate-pulse flex items-center justify-center gap-1.5"
+                      title="Watch ball-by-ball live score"
+                    >
+                      <Radio className="w-3 h-3 text-white" />
+                      <span>Watch Live</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

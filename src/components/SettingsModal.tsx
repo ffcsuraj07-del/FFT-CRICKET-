@@ -14,11 +14,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   onRefreshData,
 }) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen || !isAdmin) return null;
 
   const handleSeedDemo = async () => {
     setLoading(true);

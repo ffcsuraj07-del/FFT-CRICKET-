@@ -9,7 +9,12 @@ import {
   PlusCircle,
   X,
   Sparkles,
+  Lock,
+  LogOut,
+  ShieldCheck,
+  Eye,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface SidebarProps {
   activeTab: string;
@@ -26,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setMobileMenuOpen,
   hasLiveMatch,
 }) => {
+  const { isAdmin, adminUser, user, logOut } = useAuth();
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'players', label: 'Players', icon: Users },
@@ -33,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'matches', label: 'Matches', icon: Calendar },
     {
       id: 'scoring',
-      label: 'Live Scoring',
+      label: isAdmin ? 'Live Scoring' : 'Live Match View',
       icon: Radio,
       badge: hasLiveMatch ? 'LIVE' : undefined,
       badgeColor: 'bg-red-600 text-white animate-pulse',
@@ -74,20 +81,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           </div>
 
-          {/* Quick Create Match button */}
-          <div className="mb-4">
-            <button
-              onClick={() => handleNavClick('create-match')}
-              className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all ${
-                activeTab === 'create-match'
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
-                  : 'bg-gradient-to-r from-emerald-700 to-green-700 hover:from-emerald-600 hover:to-green-600 text-white shadow'
-              }`}
-            >
-              <PlusCircle className="w-4 h-4" />
-              <span>Create Match</span>
-            </button>
-          </div>
+          {/* Quick Create Match button — ADMIN ONLY */}
+          {isAdmin && (
+            <div className="mb-4">
+              <button
+                onClick={() => handleNavClick('create-match')}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all ${
+                  activeTab === 'create-match'
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/30'
+                    : 'bg-gradient-to-r from-emerald-700 to-green-700 hover:from-emerald-600 hover:to-green-600 text-white shadow'
+                }`}
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Create Match</span>
+              </button>
+            </div>
+          )}
 
           {/* Nav links */}
           <nav className="space-y-1">
@@ -120,15 +129,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Footer info in sidebar */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/60">
-          <div className="p-3 rounded-xl bg-emerald-950/50 border border-emerald-800/50">
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold mb-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Office Cricket League</span>
+        <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 space-y-3">
+          {isAdmin ? (
+            <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-700/60 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <div className="overflow-hidden">
+                  <div className="text-xs font-bold text-white truncate">
+                    {adminUser?.displayName || adminUser?.email || 'Admin'}
+                  </div>
+                  <div className="text-[10px] text-emerald-300">Admin Mode Active</div>
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  await logOut();
+                  setActiveTab('dashboard');
+                }}
+                className="p-1 text-slate-400 hover:text-red-400 rounded-md"
+                title="Log out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Automatic career stats calculation from ball-by-ball match data.
-            </p>
+          ) : (
+            <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-center space-y-2">
+              <div className="flex items-center justify-center gap-1.5 text-slate-400 text-xs font-semibold">
+                <Eye className="w-3.5 h-3.5" />
+                <span>Public Viewer Mode</span>
+              </div>
+              <button
+                onClick={() => handleNavClick('admin-login')}
+                className="w-full py-1.5 px-3 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow transition-colors"
+              >
+                <Lock className="w-3 h-3 text-amber-300" />
+                <span>Admin Login</span>
+              </button>
+            </div>
+          )}
+
+          <div className="text-[11px] text-slate-500 text-center">
+            FFC Cricket • Future Face Cricket
           </div>
         </div>
       </aside>

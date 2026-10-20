@@ -12,11 +12,21 @@ import { Matches } from './components/Matches.tsx';
 import { Leaderboard } from './components/Leaderboard.tsx';
 import { GlobalSearchModal } from './components/GlobalSearchModal.tsx';
 import { SettingsModal } from './components/SettingsModal.tsx';
+import { AdminLogin } from './components/AdminLogin.tsx';
 import { Player, Team, Match } from './types/cricket.ts';
 import { apiFetch } from './lib/api.ts';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      const h = window.location.hash;
+      if (p === '/admin/login' || h === '#/admin/login' || h === '#admin-login') {
+        return 'admin-login';
+      }
+    }
+    return 'dashboard';
+  });
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
   const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
 
@@ -31,6 +41,40 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Handle browser URL routing and Back/Forward history
+  useEffect(() => {
+    const handlePopState = () => {
+      const p = window.location.pathname;
+      const h = window.location.hash;
+      if (p === '/admin/login' || h === '#/admin/login') {
+        setActiveTab('admin-login');
+      } else if (activeTab === 'admin-login') {
+        setActiveTab('dashboard');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
+
+  const navigateTab = (tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      if (tab === 'admin-login') {
+        if (window.location.pathname !== '/admin/login') {
+          window.history.pushState(null, '', '/admin/login');
+        }
+      } else {
+        if (window.location.pathname === '/admin/login') {
+          window.history.pushState(null, '', '/');
+        }
+      }
+    }
+    if (tab === 'scoring' && !selectedMatchId) {
+      const liveOrUpcoming = matches.find((m) => m.status === 'live') || matches[0];
+      if (liveOrUpcoming) setSelectedMatchId(liveOrUpcoming.id);
+    }
+  };
 
   useEffect(() => {
     fetchAllData();
@@ -89,16 +133,10 @@ export default function App() {
         {/* Top Navigation Bar */}
         <Navbar
           activeTab={activeTab}
-          setActiveTab={(tab) => {
-            setActiveTab(tab);
-            if (tab === 'scoring' && !selectedMatchId) {
-              const liveOrUpcoming = matches.find((m) => m.status === 'live') || matches[0];
-              if (liveOrUpcoming) setSelectedMatchId(liveOrUpcoming.id);
-            }
-          }}
+          setActiveTab={navigateTab}
           openSearch={() => setIsSearchOpen(true)}
           openSettings={() => setIsSettingsOpen(true)}
-          openCreateMatch={() => setActiveTab('create-match')}
+          openCreateMatch={() => navigateTab('create-match')}
           hasLiveMatch={!!liveMatch}
           onLiveMatchClick={() => liveMatch && handleOpenScoring(liveMatch.id)}
           mobileMenuOpen={mobileMenuOpen}
@@ -109,13 +147,7 @@ export default function App() {
           {/* Sidebar */}
           <Sidebar
             activeTab={activeTab}
-            setActiveTab={(tab) => {
-              setActiveTab(tab);
-              if (tab === 'scoring' && !selectedMatchId) {
-                const liveOrUpcoming = matches.find((m) => m.status === 'live') || matches[0];
-                if (liveOrUpcoming) setSelectedMatchId(liveOrUpcoming.id);
-              }
-            }}
+            setActiveTab={navigateTab}
             mobileMenuOpen={mobileMenuOpen}
             setMobileMenuOpen={setMobileMenuOpen}
             hasLiveMatch={!!liveMatch}
@@ -130,14 +162,26 @@ export default function App() {
               </div>
             ) : (
               <>
+                {activeTab === 'admin-login' && (
+                  <AdminLogin
+                    onSuccess={() => {
+                      fetchAllData();
+                      navigateTab('dashboard');
+                    }}
+                    onCancel={() => {
+                      navigateTab('dashboard');
+                    }}
+                  />
+                )}
+
                 {activeTab === 'dashboard' && (
                   <Dashboard
                     overview={overview}
                     players={players}
                     onSelectPlayer={handleSelectPlayer}
                     onSelectMatch={handleSelectMatch}
-                    onStartMatch={() => setActiveTab('create-match')}
-                    onAddPlayer={() => setActiveTab('players')}
+                    onStartMatch={() => navigateTab('create-match')}
+                    onAddPlayer={() => navigateTab('players')}
                     onOpenScoring={handleOpenScoring}
                   />
                 )}
@@ -153,7 +197,7 @@ export default function App() {
                 {activeTab === 'player-profile' && selectedPlayerId && (
                   <PlayerProfile
                     playerId={selectedPlayerId}
-                    onBack={() => setActiveTab('players')}
+                    onBack={() => navigateTab('players')}
                     onSelectMatch={handleSelectMatch}
                   />
                 )}
@@ -175,7 +219,8 @@ export default function App() {
                       fetchAllData();
                       handleOpenScoring(newMatchId);
                     }}
-                    onCancel={() => setActiveTab('matches')}
+                    onCancel={() => navigateTab('matches')}
+                    onNavigateLogin={() => navigateTab('admin-login')}
                   />
                 )}
 
@@ -185,15 +230,15 @@ export default function App() {
                       matchId={selectedMatchId}
                       onViewScorecard={(mId) => {
                         setSelectedMatchId(mId);
-                        setActiveTab('matches');
+                        navigateTab('matches');
                       }}
-                      onBackToMatches={() => setActiveTab('matches')}
+                      onBackToMatches={() => navigateTab('matches')}
                     />
                   ) : (
                     <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl">
                       <p className="text-slate-400 text-sm mb-4">No match selected for scoring.</p>
                       <button
-                        onClick={() => setActiveTab('matches')}
+                        onClick={() => navigateTab('matches')}
                         className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold"
                       >
                         Browse Matches
@@ -206,7 +251,7 @@ export default function App() {
                   <Matches
                     matches={matches}
                     onOpenScoring={handleOpenScoring}
-                    onCreateMatch={() => setActiveTab('create-match')}
+                    onCreateMatch={() => navigateTab('create-match')}
                   />
                 )}
 

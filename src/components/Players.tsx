@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Player } from '../types/cricket.ts';
 import { apiFetch } from '../lib/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface PlayersProps {
   players: Player[];
@@ -26,6 +27,7 @@ export const Players: React.FC<PlayersProps> = ({
   onSelectPlayer,
   onRefreshPlayers,
 }) => {
+  const { isAdmin } = useAuth();
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -61,6 +63,7 @@ export const Players: React.FC<PlayersProps> = ({
   });
 
   const openCreateModal = () => {
+    if (!isAdmin) return;
     setEditingPlayer(null);
     setFormData({
       name: '',
@@ -103,6 +106,7 @@ export const Players: React.FC<PlayersProps> = ({
 
   const handleDeletePlayer = async (id: number, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!isAdmin) return;
     if (!window.confirm(`Are you sure you want to delete player ${name}?`)) {
       return;
     }
@@ -116,6 +120,10 @@ export const Players: React.FC<PlayersProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      setErrorMessage('Admin privileges required to save player.');
+      return;
+    }
     if (!formData.name.trim()) {
       setErrorMessage('Full Name is required');
       return;
@@ -173,13 +181,15 @@ export const Players: React.FC<PlayersProps> = ({
             Manage official office cricket profiles and squad rosters
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Add Player</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Add Player</span>
+          </button>
+        )}
       </div>
 
       {/* Filters and Search */}
@@ -275,22 +285,24 @@ export const Players: React.FC<PlayersProps> = ({
                 <span className="text-xs font-semibold text-emerald-400 group-hover:text-emerald-300 flex items-center gap-1">
                   View Career Stats <ArrowRight className="w-3.5 h-3.5" />
                 </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => openEditModal(p, e)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                    title="Edit player"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => handleDeletePlayer(p.id, p.name, e)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
-                    title="Delete player"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => openEditModal(p, e)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                      title="Edit player"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => handleDeletePlayer(p.id, p.name, e)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+                      title="Delete player"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

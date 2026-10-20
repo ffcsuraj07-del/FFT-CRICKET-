@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Team, Player } from '../types/cricket.ts';
 import { apiFetch } from '../lib/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface TeamsProps {
   teams: Team[];
@@ -27,6 +28,7 @@ export const Teams: React.FC<TeamsProps> = ({
   onRefreshTeams,
   onSelectPlayer,
 }) => {
+  const { isAdmin } = useAuth();
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,7 @@ export const Teams: React.FC<TeamsProps> = ({
   ];
 
   const openCreateModal = () => {
+    if (!isAdmin) return;
     setName('');
     setShortName('');
     setColor('#15803d');
@@ -72,6 +75,10 @@ export const Teams: React.FC<TeamsProps> = ({
 
   const handleCreateTeam = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      setErrorMessage('Administrator privileges required to create team.');
+      return;
+    }
     if (!name.trim()) {
       setErrorMessage('Team Name is required');
       return;
@@ -114,13 +121,15 @@ export const Teams: React.FC<TeamsProps> = ({
             Create squads, assign captains, and view match head-to-head records
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Create Team</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Create Team</span>
+          </button>
+        )}
       </div>
 
       {/* Teams Grid */}

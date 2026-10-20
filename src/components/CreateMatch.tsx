@@ -12,12 +12,15 @@ import {
 } from 'lucide-react';
 import { Team, Player } from '../types/cricket.ts';
 import { apiFetch } from '../lib/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
+import { Lock } from 'lucide-react';
 
 interface CreateMatchProps {
   teams: Team[];
   players: Player[];
   onMatchCreated: (matchId: number) => void;
   onCancel: () => void;
+  onNavigateLogin?: () => void;
 }
 
 export const CreateMatch: React.FC<CreateMatchProps> = ({
@@ -25,7 +28,9 @@ export const CreateMatch: React.FC<CreateMatchProps> = ({
   players,
   onMatchCreated,
   onCancel,
+  onNavigateLogin,
 }) => {
+  const { isAdmin } = useAuth();
   const [matchType, setMatchType] = useState('T20');
   const [matchFormat, setMatchFormat] = useState('Hard Ball');
   const [totalOvers, setTotalOvers] = useState(20);
@@ -144,6 +149,36 @@ export const CreateMatch: React.FC<CreateMatchProps> = ({
       setLoading(false);
     }
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-8 rounded-3xl bg-slate-900 border border-slate-800 text-center space-y-4 shadow-xl">
+        <div className="w-14 h-14 rounded-2xl bg-amber-950/80 border border-amber-800 text-amber-400 mx-auto flex items-center justify-center">
+          <Lock className="w-7 h-7" />
+        </div>
+        <h3 className="text-xl font-bold text-white">Administrator Access Required</h3>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Creating and scheduling matches requires administrator credentials. Public viewers can browse fixtures, full scorecards, and watch live ball-by-ball matches.
+        </p>
+        <div className="pt-2 flex flex-col gap-2">
+          {onNavigateLogin && (
+            <button
+              onClick={onNavigateLogin}
+              className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shadow"
+            >
+              Sign In as Administrator
+            </button>
+          )}
+          <button
+            onClick={onCancel}
+            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors"
+          >
+            Return to Matches
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16">

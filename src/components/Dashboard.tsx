@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Player, Match } from '../types/cricket.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface DashboardProps {
   overview: any;
@@ -48,6 +49,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const bestBowling = overview?.bestBowling;
   const recentMatches: Match[] = overview?.recentMatches || [];
 
+  const { isAdmin } = useAuth();
+
   return (
     <div className="space-y-8 pb-12">
       {/* Hero Welcome & Quick Action Bar */}
@@ -67,20 +70,41 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button
-              onClick={onStartMatch}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/40 hover:shadow-xl transition-all"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>New Match</span>
-            </button>
-            <button
-              onClick={onAddPlayer}
-              className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-100 font-semibold text-sm border border-emerald-700/60 transition-colors"
-            >
-              <Users className="w-4 h-4" />
-              <span>+ Add Player</span>
-            </button>
+            {isAdmin ? (
+              <>
+                <button
+                  onClick={onStartMatch}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/40 hover:shadow-xl transition-all"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>New Match</span>
+                </button>
+                <button
+                  onClick={onAddPlayer}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-100 font-semibold text-sm border border-emerald-700/60 transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>+ Add Player</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onSelectMatch(-1)}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold text-sm shadow-lg shadow-emerald-900/40 transition-all"
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Explore Fixtures</span>
+                </button>
+                <button
+                  onClick={() => onSelectPlayer(-1)}
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-emerald-100 font-semibold text-sm border border-emerald-700/60 transition-colors"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>View Squad Profiles</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 

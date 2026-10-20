@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Match, Innings, Ball, Player, InningsScorecard } from '../types/cricket.ts';
 import { apiFetch } from '../lib/api.ts';
+import { useAuth } from '../context/AuthContext.tsx';
 
 interface LiveScoringProps {
   matchId: number;
@@ -30,6 +31,7 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
   onViewScorecard,
   onBackToMatches,
 }) => {
+  const { isAdmin } = useAuth();
   const [data, setData] = useState<{
     match: Match;
     currentInnings: Innings | null;
@@ -70,6 +72,19 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
 
   useEffect(() => {
     fetchLiveData();
+
+    // Auto-polling interval: fetch latest live score updates without UI jitter
+    const pollInterval = setInterval(() => {
+      apiFetch(`/api/matches/${matchId}/live`)
+        .then((res) => {
+          if (res) {
+            setData(res);
+          }
+        })
+        .catch(() => {});
+    }, 4000);
+
+    return () => clearInterval(pollInterval);
   }, [matchId]);
 
   const fetchLiveData = async () => {
@@ -454,7 +469,87 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
   };
 
   // ----------------------------------------------------
-  // UPCOMING MATCH TOSS SETUP SCREEN
+  // UPCOMING MATCH SPECTATOR PREVIEW (PUBLIC VIEWER)
+  // ----------------------------------------------------
+  if (match.status === 'upcoming' && !isAdmin) {
+    return (
+      <div className="max-w-2xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 text-white shadow-xl space-y-6">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold">
+            <Clock className="w-3.5 h-3.5 text-amber-300" />
+            <span>Match Scheduled</span>
+          </div>
+          <button
+            onClick={onBackToMatches}
+            className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800 transition-colors"
+          >
+            ← Back to Matches
+          </button>
+        </div>
+
+        <div className="text-center py-2">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-300 mx-auto mb-3">
+            <Trophy className="w-6 h-6 text-amber-300" />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
+            {match.team1?.name} <span className="text-emerald-400 text-xl font-normal">vs</span> {match.team2?.name}
+          </h2>
+          <p className="text-xs sm:text-sm text-emerald-400 font-semibold mt-1">
+            {match.matchType} • {match.totalOvers} Overs • {match.matchFormat}
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Venue: {match.venue} • Scheduled Date: {match.date}
+          </p>
+        </div>
+
+        {/* Public spectator status banner */}
+        <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-800/60 text-center">
+          <div className="flex items-center justify-center gap-2 text-emerald-300 font-bold text-sm mb-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Live Spectator Ready</span>
+          </div>
+          <p className="text-xs text-slate-300 max-w-lg mx-auto">
+            This fixture has not started yet. Once the team admins conduct the toss and open the first innings, live scores and delivery commentary will automatically stream here.
+          </p>
+        </div>
+
+        {/* Squad previews */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              <span>{match.team1?.name} Squad</span>
+            </h4>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {team1Squad.map((p) => (
+                <div key={p.id} className="text-xs text-slate-300 py-1 border-b border-slate-900 flex justify-between">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-[10px] text-slate-500">{p.playerType}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              <span>{match.team2?.name} Squad</span>
+            </h4>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {team2Squad.map((p) => (
+                <div key={p.id} className="text-xs text-slate-300 py-1 border-b border-slate-900 flex justify-between">
+                  <span className="font-medium">{p.name}</span>
+                  <span className="text-[10px] text-slate-500">{p.playerType}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // UPCOMING MATCH TOSS SETUP SCREEN (ADMIN ONLY)
   // ----------------------------------------------------
   if (match.status === 'upcoming') {
     const tossWinner = teamsMatch(match, Number(tossWinnerId));
@@ -621,7 +716,41 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
   }
 
   // ----------------------------------------------------
-  // INNINGS BREAK / START 2ND INNINGS SCREEN
+  // INNINGS BREAK (PUBLIC SPECTATOR VIEW)
+  // ----------------------------------------------------
+  if (match.status === 'innings_break' && !isAdmin) {
+    const inn1 = inn1Scorecard?.innings;
+    const target = (inn1?.totalRuns || 0) + 1;
+    const battingTeamName =
+      inn1?.battingTeamId === match.team1Id ? match.team2?.name : match.team1?.name;
+
+    return (
+      <div className="max-w-xl mx-auto p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 text-white shadow-xl space-y-6 text-center">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950 border border-amber-800 text-amber-300 text-xs font-bold uppercase tracking-wider">
+          <Clock className="w-3.5 h-3.5" /> Innings Break
+        </div>
+        <h2 className="text-2xl font-extrabold text-white">1st Innings Completed</h2>
+        <div className="text-3xl font-black text-emerald-400">
+          Target: {target} Runs
+        </div>
+        <p className="text-xs text-slate-400">
+          {battingTeamName} needs {target} runs in {match.totalOvers} overs to win
+        </p>
+        <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs text-slate-300">
+          Waiting for 2nd innings to commence. Live scores will resume automatically.
+        </div>
+        <button
+          onClick={onBackToMatches}
+          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white transition-colors"
+        >
+          ← Back to Matches
+        </button>
+      </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // INNINGS BREAK / START 2ND INNINGS SCREEN (ADMIN ONLY)
   // ----------------------------------------------------
   if (match.status === 'innings_break') {
     const inn1 = inn1Scorecard?.innings;
@@ -863,7 +992,7 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
                   label = `${b.extraRuns}Nb`;
                 }
 
-                return (
+                return isAdmin ? (
                   <button
                     key={b.id}
                     onClick={() => setEditingBall(b)}
@@ -872,32 +1001,41 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
                   >
                     {label}
                   </button>
+                ) : (
+                  <div
+                    key={b.id}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full border text-xs font-bold flex items-center justify-center shadow ${badgeColor}`}
+                  >
+                    {label}
+                  </div>
                 );
               })
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleUndoLastBall}
-              disabled={actionLoading || isMatchCompleted || !currentInnings || (currentInnings.legalBalls === 0 && currentInnings.totalRuns === 0)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-semibold text-slate-200 transition-colors"
-              title="Undo last delivery"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">Undo Ball</span>
-            </button>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleUndoLastBall}
+                disabled={actionLoading || isMatchCompleted || !currentInnings || (currentInnings.legalBalls === 0 && currentInnings.totalRuns === 0)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-semibold text-slate-200 transition-colors"
+                title="Undo last delivery"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Undo Ball</span>
+              </button>
 
-            <button
-              onClick={handleSwitchStriker}
-              disabled={actionLoading || isMatchCompleted}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"
-              title="Manually rotate striker"
-            >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden sm:inline">Swap Strike</span>
-            </button>
-          </div>
+              <button
+                onClick={handleSwitchStriker}
+                disabled={actionLoading || isMatchCompleted}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors"
+                title="Manually rotate striker"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Swap Strike</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -961,13 +1099,14 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-purple-400 uppercase tracking-wider pb-2 border-b border-slate-800">
               <span>Current Bowler</span>
-              <button
-                onClick={() => setIsBowlerModalOpen(true)}
-                disabled={isMatchCompleted}
-                className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
-              >
-                Change Bowler
-              </button>
+              {isAdmin && !isMatchCompleted && (
+                <button
+                  onClick={() => setIsBowlerModalOpen(true)}
+                  className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300"
+                >
+                  Change Bowler
+                </button>
+              )}
             </div>
 
             <div className="flex items-center justify-between p-3 rounded-xl bg-purple-950/40 border border-purple-900/60 text-white mt-2">
@@ -993,99 +1132,117 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
         </div>
       </div>
 
-      {/* Primary Mobile-First Scoring Buttons (Requirements #11 & #27) */}
+      {/* Primary Mobile-First Scoring Buttons (ADMIN ONLY) / Spectator View (PUBLIC) */}
       {!isMatchCompleted ? (
-        <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-3.5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Scoring Controls (Tap to Record)
-            </span>
-            <div className="flex items-center gap-2">
+        isAdmin ? (
+          <div className="p-5 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl space-y-3.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Scoring Controls (Tap to Record)
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleEndInningsManually}
+                  className="text-[11px] font-semibold text-slate-400 hover:text-white"
+                >
+                  End Innings
+                </button>
+              </div>
+            </div>
+
+            {/* Runs Row (Large mobile-friendly buttons) */}
+            <div className="grid grid-cols-6 gap-2 sm:gap-3">
+              {[0, 1, 2, 3, 4, 6].map((run) => {
+                let style = 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700';
+                if (run === 4) style = 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-lg font-black';
+                if (run === 6) style = 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400 shadow-lg font-black';
+
+                return (
+                  <button
+                    key={run}
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => handleScoreDelivery(run)}
+                    className={`h-16 sm:h-20 rounded-2xl border text-xl sm:text-2xl font-extrabold flex flex-col items-center justify-center active:scale-95 transition-all shadow-md ${style}`}
+                  >
+                    <span>{run}</span>
+                    <span className="text-[10px] font-semibold opacity-75">
+                      {run === 0 ? 'Dot' : run === 4 ? 'Boundary' : run === 6 ? 'Maximum' : 'Runs'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Extras and Wicket Row */}
+            <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
+              {/* Wide */}
               <button
-                onClick={handleEndInningsManually}
-                className="text-[11px] font-semibold text-slate-400 hover:text-white"
+                type="button"
+                disabled={actionLoading}
+                onClick={handleScoreWide}
+                className="h-12 sm:h-14 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-700/80 text-amber-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
               >
-                End Innings
+                <span>WIDE</span>
+                <span className="text-[9px] text-amber-400 font-normal">+1 Extra</span>
+              </button>
+
+              {/* No Ball */}
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleScoreNoBall}
+                className="h-12 sm:h-14 rounded-xl bg-orange-950/80 hover:bg-orange-900 border border-orange-700/80 text-orange-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
+              >
+                <span>NO BALL</span>
+                <span className="text-[9px] text-orange-400 font-normal">+1 Extra</span>
+              </button>
+
+              {/* Bye / Leg Bye */}
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => {
+                  setSelectedExtraType('bye');
+                  setIsExtrasModalOpen(true);
+                }}
+                className="h-12 sm:h-14 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
+              >
+                <span>BYE / LB</span>
+                <span className="text-[9px] text-slate-400 font-normal">Custom Extra</span>
+              </button>
+
+              {/* BIG WICKET BUTTON (Cricket red accent) */}
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => {
+                  setWicketBatterId(currentInnings?.currentStrikerId || null);
+                  setIsWicketModalOpen(true);
+                }}
+                className="col-span-1 sm:col-span-2 h-12 sm:h-14 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 border border-red-400 text-white font-black text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-red-900/40 active:scale-95 transition-all"
+              >
+                <span>WICKET!</span>
               </button>
             </div>
           </div>
-
-          {/* Runs Row (Large mobile-friendly buttons) */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-3">
-            {[0, 1, 2, 3, 4, 6].map((run) => {
-              let style = 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700';
-              if (run === 4) style = 'bg-blue-600 hover:bg-blue-500 text-white border-blue-400 shadow-lg font-black';
-              if (run === 6) style = 'bg-purple-600 hover:bg-purple-500 text-white border-purple-400 shadow-lg font-black';
-
-              return (
-                <button
-                  key={run}
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={() => handleScoreDelivery(run)}
-                  className={`h-16 sm:h-20 rounded-2xl border text-xl sm:text-2xl font-extrabold flex flex-col items-center justify-center active:scale-95 transition-all shadow-md ${style}`}
-                >
-                  <span>{run}</span>
-                  <span className="text-[10px] font-semibold opacity-75">
-                    {run === 0 ? 'Dot' : run === 4 ? 'Boundary' : run === 6 ? 'Maximum' : 'Runs'}
-                  </span>
-                </button>
-              );
-            })}
+        ) : (
+          <div className="p-4 sm:p-5 rounded-3xl bg-slate-900 border border-emerald-900/60 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+              <div>
+                <span className="font-bold text-sm text-white">Live Spectator Feed Active</span>
+                <p className="text-slate-400 text-xs mt-0.5">Ball-by-ball deliveries and scorecards refresh automatically as the match proceeds.</p>
+              </div>
+            </div>
+            <div className="text-emerald-300 text-xs font-semibold bg-emerald-950/80 px-3.5 py-1.5 rounded-xl border border-emerald-800 whitespace-nowrap">
+              Auto-updating • Read Only
+            </div>
           </div>
-
-          {/* Extras and Wicket Row */}
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 sm:gap-3">
-            {/* Wide */}
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={handleScoreWide}
-              className="h-12 sm:h-14 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-700/80 text-amber-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
-            >
-              <span>WIDE</span>
-              <span className="text-[9px] text-amber-400 font-normal">+1 Extra</span>
-            </button>
-
-            {/* No Ball */}
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={handleScoreNoBall}
-              className="h-12 sm:h-14 rounded-xl bg-orange-950/80 hover:bg-orange-900 border border-orange-700/80 text-orange-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
-            >
-              <span>NO BALL</span>
-              <span className="text-[9px] text-orange-400 font-normal">+1 Extra</span>
-            </button>
-
-            {/* Bye / Leg Bye */}
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => {
-                setSelectedExtraType('bye');
-                setIsExtrasModalOpen(true);
-              }}
-              className="h-12 sm:h-14 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold flex flex-col items-center justify-center active:scale-95 transition-all"
-            >
-              <span>BYE / LB</span>
-              <span className="text-[9px] text-slate-400 font-normal">Custom Extra</span>
-            </button>
-
-            {/* BIG WICKET BUTTON (Cricket red accent) */}
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => {
-                setWicketBatterId(currentInnings?.currentStrikerId || null);
-                setIsWicketModalOpen(true);
-              }}
-              className="col-span-1 sm:col-span-2 h-12 sm:h-14 rounded-xl bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 border border-red-400 text-white font-black text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-red-900/40 active:scale-95 transition-all"
-            >
-              <span>WICKET!</span>
-            </button>
-          </div>
-        </div>
+        )
       ) : (
         <div className="p-8 text-center rounded-3xl bg-slate-900 border border-slate-800 text-slate-300 space-y-4">
           <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto" />
