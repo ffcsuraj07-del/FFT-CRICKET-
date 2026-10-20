@@ -1,0 +1,6 @@
+{
+  "name": "FFC Cricket",
+  "description": "Office cricket team management and live ball-by-ball scoring system for Future Face Cricket.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
