@@ -32,6 +32,7 @@ export const Players: React.FC<PlayersProps> = ({
   const [selectedRole, setSelectedRole] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [playerToDelete, setPlayerToDelete] = useState<{ id: number; name: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -104,19 +105,20 @@ export const Players: React.FC<PlayersProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleDeletePlayer = async (id: number, name: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isAdmin) return;
-    if (!window.confirm(`Are you sure you want to delete player ${name}?`)) {
-      return;
-    }
+  const confirmDeletePlayer = async () => {
+    if (!isAdmin || !playerToDelete) return;
+    setLoading(true);
     try {
-      await apiFetch(`/api/players/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/players/${playerToDelete.id}`, { method: 'DELETE' });
+      setPlayerToDelete(null);
       onRefreshPlayers();
     } catch (err: any) {
-      alert(err.message || 'Failed to delete player');
+      setErrorMessage(err.message || 'Failed to delete player');
+    } finally {
+      setLoading(false);
     }
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,7 +297,10 @@ export const Players: React.FC<PlayersProps> = ({
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={(e) => handleDeletePlayer(p.id, p.name, e)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPlayerToDelete({ id: p.id, name: p.name });
+                      }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
                       title="Delete player"
                     >
@@ -306,6 +311,42 @@ export const Players: React.FC<PlayersProps> = ({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {playerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 text-white space-y-4">
+            <div className="flex items-center gap-3 text-red-400">
+              <div className="p-2 rounded-xl bg-red-950/80 border border-red-800/80">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-white">Delete Player</h4>
+                <p className="text-xs text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Are you sure you want to delete <span className="font-semibold text-white">{playerToDelete.name}</span> from the database?
+            </p>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                onClick={confirmDeletePlayer}
+                disabled={loading}
+                className="flex-1 py-2 px-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold transition-colors"
+              >
+                {loading ? 'Deleting...' : 'Delete Player'}
+              </button>
+              <button
+                onClick={() => setPlayerToDelete(null)}
+                disabled={loading}
+                className="py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -133,7 +133,18 @@ export const Teams: React.FC<TeamsProps> = ({
       </div>
 
       {/* Teams Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {teams.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 text-sm">
+          <p>No teams loaded yet or connection is establishing.</p>
+          <button
+            onClick={onRefreshTeams}
+            className="mt-3 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+          >
+            Refresh Teams
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {teams.map((t) => {
           const winRate =
             t.matchesPlayed && t.matchesPlayed > 0
@@ -166,12 +177,6 @@ export const Teams: React.FC<TeamsProps> = ({
                       </div>
                     </div>
                   </div>
-
-                  {t.isDemo && (
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-slate-700">
-                      Demo Squad
-                    </span>
-                  )}
                 </div>
 
                 {/* Captain & Vice Captain */}
@@ -245,7 +250,8 @@ export const Teams: React.FC<TeamsProps> = ({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* Create Team Modal */}
       {isModalOpen && (

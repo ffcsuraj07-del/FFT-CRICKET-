@@ -47,23 +47,44 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestInit =
   const authHeader = await getAuthHeader();
   const headers = {
     'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache',
+    'Pragma': 'no-cache',
     ...authHeader,
     ...(options.headers || {}),
   };
 
-  const response = await fetch(endpoint, {
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const sep = endpoint.includes('?') ? '&' : '?';
+  const url = isGet ? `${endpoint}${sep}_t=${Date.now()}` : endpoint;
+
+  const response = await fetch(url, {
     ...options,
     headers,
+    credentials: 'include',
+    cache: 'no-store',
   });
+
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
 
   if (!response.ok) {
     let errorMsg = `HTTP Error ${response.status}`;
-    try {
-      const errorJson = await response.json();
-      errorMsg = errorJson.error || errorMsg;
-    } catch {}
+    if (isJson) {
+      try {
+        const errorJson = await response.json();
+        errorMsg = errorJson.error || errorMsg;
+      } catch {}
+    } else {
+      try {
+        const text = await response.text();
+        if (text && text.length < 200) errorMsg = text;
+      } catch {}
+    }
     throw new Error(errorMsg);
   }
 
-  return response.json();
+  if (isJson) {
+    return response.json();
+  }
+  throw new Error(`Expected JSON from ${endpoint}, received ${contentType || 'non-JSON'}`);
 }

@@ -11,7 +11,6 @@ import { LiveScoring } from './components/LiveScoring.tsx';
 import { Matches } from './components/Matches.tsx';
 import { Leaderboard } from './components/Leaderboard.tsx';
 import { GlobalSearchModal } from './components/GlobalSearchModal.tsx';
-import { SettingsModal } from './components/SettingsModal.tsx';
 import { AdminLogin } from './components/AdminLogin.tsx';
 import { Player, Team, Match } from './types/cricket.ts';
 import { apiFetch } from './lib/api.ts';
@@ -39,7 +38,6 @@ export default function App() {
 
   // UI Modals
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Handle browser URL routing and Back/Forward history
@@ -80,21 +78,58 @@ export default function App() {
     fetchAllData();
   }, []);
 
-  const fetchAllData = async () => {
+  const fetchAllData = async (retryCount = 0) => {
     try {
-      setLoading(true);
-      const [ovData, plData, tmData, mtData] = await Promise.all([
+      if (retryCount === 0) setLoading(true);
+      const [ovRes, plRes, tmRes, mtRes] = await Promise.allSettled([
         apiFetch('/api/dashboard'),
         apiFetch('/api/players'),
         apiFetch('/api/teams'),
         apiFetch('/api/matches'),
       ]);
-      setOverview(ovData);
-      setPlayers(plData);
-      setTeams(tmData);
-      setMatches(mtData);
+
+      let loadedTeamsCount = 0;
+      let loadedPlayersCount = 0;
+
+      if (ovRes.status === 'fulfilled' && ovRes.value) {
+        setOverview(ovRes.value);
+      } else if (ovRes.status === 'rejected') {
+        console.warn('Dashboard fetch warning:', ovRes.reason);
+      }
+
+      if (plRes.status === 'fulfilled' && Array.isArray(plRes.value)) {
+        setPlayers(plRes.value);
+        loadedPlayersCount = plRes.value.length;
+      } else if (plRes.status === 'rejected') {
+        console.error('Players fetch error:', plRes.reason);
+      }
+
+      if (tmRes.status === 'fulfilled' && Array.isArray(tmRes.value)) {
+        setTeams(tmRes.value);
+        loadedTeamsCount = tmRes.value.length;
+      } else if (tmRes.status === 'rejected') {
+        console.error('Teams fetch error:', tmRes.reason);
+      }
+
+      if (mtRes.status === 'fulfilled' && Array.isArray(mtRes.value)) {
+        setMatches(mtRes.value);
+      } else if (mtRes.status === 'rejected') {
+        console.warn('Matches fetch warning:', mtRes.reason);
+      }
+
+      // If initial fetch returned 0 teams due to server warm-up, retry automatically
+      if (loadedTeamsCount === 0 && retryCount < 2) {
+        setTimeout(() => {
+          fetchAllData(retryCount + 1);
+        }, 1500);
+      }
     } catch (err) {
       console.error('Failed to load application data:', err);
+      if (retryCount < 2) {
+        setTimeout(() => {
+          fetchAllData(retryCount + 1);
+        }, 1500);
+      }
     } finally {
       setLoading(false);
     }
@@ -135,7 +170,6 @@ export default function App() {
           activeTab={activeTab}
           setActiveTab={navigateTab}
           openSearch={() => setIsSearchOpen(true)}
-          openSettings={() => setIsSettingsOpen(true)}
           openCreateMatch={() => navigateTab('create-match')}
           hasLiveMatch={!!liveMatch}
           onLiveMatchClick={() => liveMatch && handleOpenScoring(liveMatch.id)}
@@ -273,13 +307,6 @@ export default function App() {
           onSelectPlayer={handleSelectPlayer}
           onSelectTeam={(tId) => setActiveTab('teams')}
           onSelectMatch={handleSelectMatch}
-        />
-
-        {/* Settings Modal (Requirement #32 Demo Data) */}
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          onRefreshData={fetchAllData}
         />
       </div>
     </AuthProvider>

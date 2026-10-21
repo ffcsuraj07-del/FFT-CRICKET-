@@ -316,9 +316,6 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
 
   const handleUndoLastBall = async () => {
     if (!currentInnings) return;
-    if (!window.confirm('Undo the last delivery? This will reverse the score, bowler figures, and strike rotation.')) {
-      return;
-    }
     setActionLoading(true);
     try {
       const updated = await apiFetch('/api/scoring/undo', {
@@ -450,8 +447,6 @@ export const LiveScoring: React.FC<LiveScoringProps> = ({
 
   const handleEndInningsManually = async () => {
     if (!currentInnings) return;
-    if (!window.confirm('Declare / End current innings now?')) return;
-
     setActionLoading(true);
     try {
       const updated = await apiFetch(`/api/matches/${match.id}/end-innings`, {

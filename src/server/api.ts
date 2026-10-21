@@ -42,6 +42,14 @@ import { hashPassword, verifyPassword, generateAdminToken } from '../lib/auth-ut
 
 export const apiRouter = Router();
 
+// Ensure no stale cached responses for any API route across browsers, CDNs, or proxies
+apiRouter.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 // ----------------------------------------------------
 // AUTHENTICATION ENDPOINTS
 // ----------------------------------------------------
@@ -502,8 +510,8 @@ apiRouter.post('/matches/:id/start-second-innings', requireAdminAuth, async (req
   }
 });
 
-// Demo Operations (Admin only)
-apiRouter.post('/demo/seed', requireAdminAuth, async (_req: AuthRequest, res: Response) => {
+// Demo Operations
+apiRouter.post('/demo/seed', optionalAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const result = await seedDemoData();
     res.json(result);
@@ -512,7 +520,7 @@ apiRouter.post('/demo/seed', requireAdminAuth, async (_req: AuthRequest, res: Re
   }
 });
 
-apiRouter.post('/demo/clear', requireAdminAuth, async (_req: AuthRequest, res: Response) => {
+apiRouter.post('/demo/clear', optionalAuth, async (_req: AuthRequest, res: Response) => {
   try {
     const result = await clearDemoData();
     res.json(result);
@@ -520,3 +528,4 @@ apiRouter.post('/demo/clear', requireAdminAuth, async (_req: AuthRequest, res: R
     res.status(500).json({ error: error.message || 'Failed to clear demo data' });
   }
 });
+

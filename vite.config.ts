@@ -18,6 +18,12 @@ export default defineConfig(() => {
           app.use('/api', apiRouter);
           server.middlewares.use(app);
         },
+        configurePreviewServer(server) {
+          const app = express();
+          app.use(express.json());
+          app.use('/api', apiRouter);
+          server.middlewares.use(app);
+        },
       },
     ],
     resolve: {

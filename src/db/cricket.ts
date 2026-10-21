@@ -181,40 +181,53 @@ export async function getAllTeams() {
           viceCaptain = vc[0] || null;
         }
 
-        // Get match statistics for this team
-        const teamMatches = await db.select().from(matches).where(
-          and(
-            sql`(${matches.team1Id} = ${team.id} OR ${matches.team2Id} = ${team.id})`,
-            eq(matches.status, 'completed')
-          )
-        );
+        // Quick check if any completed matches exist
+        const hasCompletedMatches = await db.select({ id: matches.id })
+          .from(matches)
+          .where(eq(matches.status, 'completed'))
+          .limit(1);
 
         let wins = 0;
         let losses = 0;
         let ties = 0;
         let noResults = 0;
+        let totalRuns = 0;
+        let totalWickets = 0;
+        let matchesPlayed = 0;
 
-        teamMatches.forEach((m) => {
-          if (m.winnerTeamId === team.id) {
-            wins++;
-          } else if (m.resultSummary && m.resultSummary.toLowerCase().includes('tie')) {
-            ties++;
-          } else if (m.resultSummary && m.resultSummary.toLowerCase().includes('no result')) {
-            noResults++;
-          } else if (m.winnerTeamId) {
-            losses++;
-          }
-        });
+        if (hasCompletedMatches.length > 0) {
+          // Get match statistics for this team
+          const teamMatches = await db.select().from(matches).where(
+            and(
+              sql`(${matches.team1Id} = ${team.id} OR ${matches.team2Id} = ${team.id})`,
+              eq(matches.status, 'completed')
+            )
+          );
 
-        // Total runs and wickets scored by team
-        const teamInnings = await db.select().from(innings).where(
-          and(
-            eq(innings.battingTeamId, team.id),
-            eq(innings.isCompleted, true)
-          )
-        );
-        const totalRuns = teamInnings.reduce((sum, inn) => sum + inn.totalRuns, 0);
-        const totalWickets = teamInnings.reduce((sum, inn) => sum + inn.totalWickets, 0);
+          matchesPlayed = teamMatches.length;
+
+          teamMatches.forEach((m) => {
+            if (m.winnerTeamId === team.id) {
+              wins++;
+            } else if (m.resultSummary && m.resultSummary.toLowerCase().includes('tie')) {
+              ties++;
+            } else if (m.resultSummary && m.resultSummary.toLowerCase().includes('no result')) {
+              noResults++;
+            } else if (m.winnerTeamId) {
+              losses++;
+            }
+          });
+
+          // Total runs and wickets scored by team
+          const teamInnings = await db.select().from(innings).where(
+            and(
+              eq(innings.battingTeamId, team.id),
+              eq(innings.isCompleted, true)
+            )
+          );
+          totalRuns = teamInnings.reduce((sum, inn) => sum + inn.totalRuns, 0);
+          totalWickets = teamInnings.reduce((sum, inn) => sum + inn.totalWickets, 0);
+        }
 
         return {
           ...team,
@@ -222,7 +235,7 @@ export async function getAllTeams() {
           viceCaptain,
           members,
           memberCount: members.length,
-          matchesPlayed: teamMatches.length,
+          matchesPlayed,
           wins,
           losses,
           ties,
@@ -1767,7 +1780,35 @@ export async function getPlayerMatchHistory(playerId: number) {
 // ----------------------------------------------------
 export async function getLeaderboards() {
   try {
-    const allPlayersList = await db.select().from(players);
+    const completedMatches = await db.select({ id: matches.id })
+      .from(matches)
+      .where(eq(matches.status, 'completed'));
+
+    if (completedMatches.length === 0) {
+      return {
+        batting: [],
+        bowling: [],
+        fielding: [],
+      };
+    }
+
+    const matchIds = completedMatches.map((m) => m.id);
+    const activeSquadMembers = await db.selectDistinct({
+      playerId: matchSquads.playerId,
+    })
+    .from(matchSquads)
+    .where(inArray(matchSquads.matchId, matchIds));
+
+    const activePlayerIds = activeSquadMembers.map((s) => s.playerId);
+    if (activePlayerIds.length === 0) {
+      return {
+        batting: [],
+        bowling: [],
+        fielding: [],
+      };
+    }
+
+    const allPlayersList = await db.select().from(players).where(inArray(players.id, activePlayerIds));
     const playerStatsList = await Promise.all(
       allPlayersList.map(async (p) => {
         const stats = await getPlayerCareerStats(p.id);
@@ -1857,42 +1898,45 @@ export async function getDashboardOverview() {
       })
     );
 
-    // Top performers
-    const leaderboards = await getLeaderboards();
-    const topRunScorer = leaderboards.batting[0] || null;
-    const topWicketTaker = leaderboards.bowling[0] || null;
-
-    // Highest individual score
+    // Top performers - only calculate if completed matches exist
+    let topRunScorer: any = null;
+    let topWicketTaker: any = null;
     let highestScorePlayer: any = null;
-    let maxScore = -1;
-    leaderboards.batting.forEach((p) => {
-      if (p.batting.highestScore > maxScore) {
-        maxScore = p.batting.highestScore;
-        highestScorePlayer = {
-          name: p.name,
-          score: p.batting.highestScore,
-          isNotOut: p.batting.highestScoreNotOut,
-          department: p.department,
-        };
-      }
-    });
-
-    // Best bowling figures
     let bestBowlingPlayer: any = null;
-    let maxW = 0;
-    leaderboards.bowling.forEach((p) => {
-      if (p.bowling.bestBowling && p.bowling.bestBowling !== '-') {
-        const [w] = p.bowling.bestBowling.split('/').map(Number);
-        if (w >= maxW) {
-          maxW = w;
-          bestBowlingPlayer = {
+
+    if (completedMatches.length > 0) {
+      const leaderboards = await getLeaderboards();
+      topRunScorer = leaderboards.batting[0] || null;
+      topWicketTaker = leaderboards.bowling[0] || null;
+
+      let maxScore = -1;
+      leaderboards.batting.forEach((p) => {
+        if (p.batting.highestScore > maxScore) {
+          maxScore = p.batting.highestScore;
+          highestScorePlayer = {
             name: p.name,
-            figures: p.bowling.bestBowling,
+            score: p.batting.highestScore,
+            isNotOut: p.batting.highestScoreNotOut,
             department: p.department,
           };
         }
-      }
-    });
+      });
+
+      let maxW = 0;
+      leaderboards.bowling.forEach((p) => {
+        if (p.bowling.bestBowling && p.bowling.bestBowling !== '-') {
+          const [w] = p.bowling.bestBowling.split('/').map(Number);
+          if (w >= maxW) {
+            maxW = w;
+            bestBowlingPlayer = {
+              name: p.name,
+              figures: p.bowling.bestBowling,
+              department: p.department,
+            };
+          }
+        }
+      });
+    }
 
     return {
       totals: {
@@ -2351,6 +2395,58 @@ export async function seedDemoData() {
 
 export async function clearDemoData() {
   try {
+    // 1. Clear any foreign key references from matches that reference demo teams or players
+    await db.execute(sql`
+      UPDATE matches 
+      SET team1_captain_id = NULL 
+      WHERE team1_captain_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE matches 
+      SET team2_captain_id = NULL 
+      WHERE team2_captain_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE matches 
+      SET winner_team_id = NULL 
+      WHERE winner_team_id IN (SELECT id FROM teams WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE matches 
+      SET toss_winner_id = NULL 
+      WHERE toss_winner_id IN (SELECT id FROM teams WHERE is_demo = true)
+    `);
+
+    // 2. Clear captain & vice captain references from teams
+    await db.execute(sql`
+      UPDATE teams 
+      SET captain_id = NULL 
+      WHERE captain_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE teams 
+      SET vice_captain_id = NULL 
+      WHERE vice_captain_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+
+    // 3. Clear innings striker/bowler references to demo players
+    await db.execute(sql`
+      UPDATE innings 
+      SET current_striker_id = NULL 
+      WHERE current_striker_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE innings 
+      SET current_non_striker_id = NULL 
+      WHERE current_non_striker_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      UPDATE innings 
+      SET current_bowler_id = NULL 
+      WHERE current_bowler_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+
+    // 4. Delete match dependencies for demo matches
     const demoMatches = await db.select().from(matches).where(eq(matches.isDemo, true));
     for (const m of demoMatches) {
       await db.delete(balls).where(eq(balls.matchId, m.id));
@@ -2359,17 +2455,44 @@ export async function clearDemoData() {
       await db.delete(matches).where(eq(matches.id, m.id));
     }
 
-    const demoTeams = await db.select().from(teams).where(eq(teams.isDemo, true));
-    for (const t of demoTeams) {
-      await db.delete(teamPlayers).where(eq(teamPlayers.teamId, t.id));
-      await db.delete(teams).where(eq(teams.id, t.id));
-    }
+    // 5. Delete balls & match_squads referencing demo players in any match
+    await db.execute(sql`
+      DELETE FROM balls 
+      WHERE striker_id IN (SELECT id FROM players WHERE is_demo = true)
+         OR non_striker_id IN (SELECT id FROM players WHERE is_demo = true)
+         OR bowler_id IN (SELECT id FROM players WHERE is_demo = true)
+         OR dismissed_player_id IN (SELECT id FROM players WHERE is_demo = true)
+         OR fielder_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+    await db.execute(sql`
+      DELETE FROM match_squads 
+      WHERE player_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
 
+    // 6. Delete team_players links for demo teams and demo players
+    await db.execute(sql`
+      DELETE FROM team_players 
+      WHERE team_id IN (SELECT id FROM teams WHERE is_demo = true)
+         OR player_id IN (SELECT id FROM players WHERE is_demo = true)
+    `);
+
+    // 7. Delete demo teams
+    await db.delete(teams).where(eq(teams.isDemo, true));
+
+    // 8. Delete demo players
     await db.delete(players).where(eq(players.isDemo, true));
 
-    return { message: 'Demo data cleared successfully' };
+    const totalRealPlayers = await db.select().from(players);
+    const totalRealTeams = await db.select().from(teams);
+
+    return {
+      message: `Demo data cleared successfully. Active in database: ${totalRealTeams.length} real teams and ${totalRealPlayers.length} real players.`,
+      realPlayersCount: totalRealPlayers.length,
+      realTeamsCount: totalRealTeams.length,
+    };
   } catch (error) {
     console.error('Error clearing demo data:', error);
     throw new Error('Failed to clear demo data', { cause: error });
   }
 }
+

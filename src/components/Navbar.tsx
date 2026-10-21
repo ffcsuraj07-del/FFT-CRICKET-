@@ -7,7 +7,6 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  Database,
   Menu,
   Eye,
   ShieldCheck,
@@ -19,7 +18,6 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   openSearch: () => void;
-  openSettings: () => void;
   openCreateMatch: () => void;
   hasLiveMatch?: boolean;
   onLiveMatchClick?: () => void;
@@ -30,7 +28,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   openSearch,
-  openSettings,
   openCreateMatch,
   hasLiveMatch,
   onLiveMatchClick,
@@ -116,17 +113,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <PlusCircle className="w-4 h-4" />
                 <span className="hidden sm:inline">New Match</span>
-              </button>
-            )}
-
-            {/* Demo & Data Settings — ONLY for Admins */}
-            {isAdmin && (
-              <button
-                onClick={openSettings}
-                className="p-2 rounded-lg text-emerald-300 hover:text-white hover:bg-emerald-900 border border-emerald-800/60 transition-colors"
-                title="Demo Data & System Settings"
-              >
-                <Database className="w-4 h-4" />
               </button>
             )}
 
